@@ -10,11 +10,18 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: barichello/godot-ci:4.3
+    env:
+      JAVA_HOME: /usr/lib/jvm/java-17-openjdk-amd64
     steps:
       - uses: actions/checkout@v4
-      - name: Prepare export
+      - name: Prepare Godot Android export
         working-directory: godot
-        run: mkdir -p build/android
+        run: |
+          mkdir -p build/android
+          mkdir -p /github/home/.local/share/godot/export_templates
+          cp -r /root/.local/share/godot/templates/4.3.stable /github/home/.local/share/godot/export_templates/4.3.stable
+          mkdir -p /github/home/.android
+          keytool -genkeypair -v -keystore /github/home/.android/debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -validity 10000 -dname "CN=Aqua Rush,O=Somnyra,C=TR"
       - name: Export Android APK
         working-directory: godot
         run: godot --headless --verbose --export-debug "Android" build/android/Aqua-Rush-3D.apk
