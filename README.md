@@ -13,4 +13,4 @@ The **APK Olustur** GitHub Actions workflow produces an installable APK.
 
 ## Version
 
-v1.1.1 — Reliable movement, automatic targeting and balanced collision damage.
+v2.0.0 — Rebuilt from scratch with a fixed one-thumb joystick, new arena, balance and effects.
