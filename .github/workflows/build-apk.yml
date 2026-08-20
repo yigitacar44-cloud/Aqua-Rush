@@ -1,4 +1,4 @@
-name: Build Aqua Rush APK
+name: Build Aqua Rush 3D APK
 on:
   push:
     branches: [codex/android-apk]
@@ -8,17 +8,17 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    container:
+      image: barichello/godot-ci:4.3
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-      - uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.7'
-      - run: gradle assembleDebug --no-daemon
+      - name: Prepare export
+        working-directory: godot
+        run: mkdir -p build/android
+      - name: Export Android APK
+        working-directory: godot
+        run: godot --headless --verbose --export-debug "Android" build/android/Aqua-Rush-3D.apk
       - uses: actions/upload-artifact@v4
         with:
-          name: Aqua-Rush-APK
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: Aqua-Rush-3D-APK
+          path: godot/build/android/Aqua-Rush-3D.apk
