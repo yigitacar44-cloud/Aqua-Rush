@@ -2,6 +2,8 @@ name: Build Aqua Rush APK
 on:
   push:
     branches: [codex/android-apk]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 jobs:
   build:
