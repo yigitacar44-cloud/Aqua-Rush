@@ -23,6 +23,7 @@ jobs:
           cp -r /root/.config/godot /github/home/.config/godot
           cp -r /root/.local/share/godot/export_templates/4.3.stable /github/home/.local/share/godot/export_templates/4.3.stable
           echo 'export/android/java_sdk_path = "/usr/lib/jvm/java-17-openjdk-amd64"' >> /github/home/.config/godot/editor_settings-4.3.tres
+          echo 'export/android/android_sdk_path = "/usr/lib/android-sdk"' >> /github/home/.config/godot/editor_settings-4.3.tres
           mkdir -p /github/home/.android
           keytool -genkeypair -v -keystore /github/home/.android/debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -validity 10000 -dname "CN=Aqua Rush,O=Somnyra,C=TR"
       - name: Export Android APK
