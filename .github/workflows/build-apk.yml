@@ -28,6 +28,7 @@ jobs:
           echo 'export/android/android_sdk_path = "/usr/lib/android-sdk"' >> /github/home/.config/godot/editor_settings-4.3.tres
           mkdir -p /root/.android
           keytool -genkeypair -v -keystore /root/.android/debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -validity 10000 -dname "CN=Aqua Rush,O=Somnyra,C=TR"
+          godot --headless --path . --install-android-build-template
       - name: Export Android APK
         working-directory: godot
         run: godot --headless --verbose --export-debug "Android" build/android/Aqua-Rush-3D.apk
