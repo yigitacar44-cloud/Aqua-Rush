@@ -13,4 +13,4 @@ The **APK Olustur** GitHub Actions workflow produces an installable APK.
 
 ## Version
 
-v2.0.0 — Rebuilt from scratch with a fixed one-thumb joystick, new arena, balance and effects.
+v2.1.0 — Manual twin-stick combat, dash ability, tougher waves, smaller magazine and boss rounds.
