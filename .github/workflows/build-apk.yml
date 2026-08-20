@@ -9,31 +9,26 @@ env:
   GODOT_VERSION: 4.3
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     container:
       image: barichello/godot-ci:4.3
     steps:
-      - uses: actions/checkout@v4
-      - name: Prepare Godot Android export
-        working-directory: godot
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Prepare Godot export templates
         run: |
-          yes | sdkmanager --licenses >/dev/null
-          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0" "cmake;3.10.2.4988404" "ndk;23.2.8568313"
-          mkdir -p build/android
-          mkdir -p /github/home/.local/share/godot/export_templates
-          mkdir -p /github/home/.config
-          cp -r /root/.config/godot /github/home/.config/godot
-          cp -r /root/.local/share/godot/export_templates/4.3.stable /github/home/.local/share/godot/export_templates/4.3.stable
-          echo 'export/android/java_sdk_path = "/usr/lib/jvm/java-17-openjdk-amd64"' >> /github/home/.config/godot/editor_settings-4.3.tres
-          echo 'export/android/android_sdk_path = "/usr/lib/android-sdk"' >> /github/home/.config/godot/editor_settings-4.3.tres
-          mkdir -p /root/.android
-          keytool -genkeypair -v -keystore /root/.android/debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -validity 10000 -dname "CN=Aqua Rush,O=Somnyra,C=TR"
-          mkdir -p android/build
-          unzip -q /root/.local/share/godot/export_templates/4.3.stable/android_source.zip -d android/build
+          mkdir -p ~/.local/share/godot/export_templates
+          mkdir -p ~/.config
+          mv /root/.config/godot ~/.config/godot
+          mv /root/.local/share/godot/export_templates/${GODOT_VERSION}.stable ~/.local/share/godot/export_templates/${GODOT_VERSION}.stable
       - name: Export Android APK
-        working-directory: godot
-        run: godot --headless --verbose --export-debug "Android" build/android/Aqua-Rush-3D.apk
+        run: |
+          mkdir -p build/android
+          EXPORT_DIR="$(readlink -f build)"
+          cd godot
+          godot --headless --editor --quit
+          godot --headless --verbose --export-debug "Android" "$EXPORT_DIR/android/Aqua-Rush-3D.apk"
       - uses: actions/upload-artifact@v4
         with:
           name: Aqua-Rush-3D-APK
-          path: godot/build/android/Aqua-Rush-3D.apk
+          path: build/android/Aqua-Rush-3D.apk
