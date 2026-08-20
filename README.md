@@ -10,3 +10,7 @@ Yatay ekran için hazırlanmış, çevrimdışı çalışan Android hayatta kalm
 - Üç farklı zombi tipi ve gittikçe zorlaşan dalgalar.
 
 GitHub Actions içindeki **APK Olustur** iş akışı indirilebilir APK üretir.
+
+## Sürüm
+
+v1.0.0 — İlk oynanabilir Android sürümü.
