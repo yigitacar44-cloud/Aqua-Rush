@@ -13,4 +13,4 @@ The **APK Olustur** GitHub Actions workflow produces an installable APK.
 
 ## Version
 
-v2.1.0 — Manual twin-stick combat, dash ability, tougher waves, smaller magazine and boss rounds.
+v2.2.0 — Fairer difficulty curve, score and combo system, critical hits, health drops and double-tap dash.
