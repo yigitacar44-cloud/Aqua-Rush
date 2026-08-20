@@ -13,4 +13,4 @@ The **APK Olustur** GitHub Actions workflow produces an installable APK.
 
 ## Version
 
-v2.2.0 — Fairer difficulty curve, score and combo system, critical hits, health drops and double-tap dash.
+v2.3.0 — ACAR GAME splash screen and redesigned arena, character and enemy visuals.
