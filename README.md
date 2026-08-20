@@ -1,16 +1,16 @@
-# Son Siper: Zombi Savunması
+# Last Stand: Zombie Defense
 
-Yatay ekran için hazırlanmış, çevrimdışı çalışan Android hayatta kalma oyunu.
+An offline Android survival game built for landscape play.
 
-## Oynanış
+## Gameplay
 
-- Sol joystick ile hareket et.
-- Sağ tarafta basılı tutarak nişan al ve otomatik ateş et.
-- Dalgaları temizle, para kazan ve her dalga sonunda geliştirme seç.
-- Üç farklı zombi tipi ve gittikçe zorlaşan dalgalar.
+- Move with the dynamic left joystick.
+- Aim and fire with the dynamic right joystick.
+- Clear waves, earn coins and choose an upgrade after each wave.
+- Fight three zombie types through increasingly difficult waves.
 
-GitHub Actions içindeki **APK Olustur** iş akışı indirilebilir APK üretir.
+The **APK Olustur** GitHub Actions workflow produces an installable APK.
 
-## Sürüm
+## Version
 
-v1.0.0 — İlk oynanabilir Android sürümü.
+v1.1.0 — Improved controls, effects and full English interface.
