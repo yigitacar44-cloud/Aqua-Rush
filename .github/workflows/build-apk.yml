@@ -27,6 +27,7 @@ jobs:
           EXPORT_DIR="$(readlink -f build)"
           cd godot
           godot --headless --editor --quit
+          godot --headless --quit-after 5
           godot --headless --verbose --export-debug "Android" "$EXPORT_DIR/android/Aqua-Rush-3D.apk"
       - uses: actions/upload-artifact@v4
         with:
