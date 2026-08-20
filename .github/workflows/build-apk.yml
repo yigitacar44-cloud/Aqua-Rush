@@ -5,13 +5,13 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
+env:
+  GODOT_VERSION: 4.3
 jobs:
   build:
     runs-on: ubuntu-latest
     container:
       image: barichello/godot-ci:4.3
-    env:
-      JAVA_HOME: /usr/lib/jvm/java-17-openjdk-amd64
     steps:
       - uses: actions/checkout@v4
       - name: Prepare Godot Android export
@@ -19,7 +19,10 @@ jobs:
         run: |
           mkdir -p build/android
           mkdir -p /github/home/.local/share/godot/export_templates
+          mkdir -p /github/home/.config
+          cp -r /root/.config/godot /github/home/.config/godot
           cp -r /root/.local/share/godot/export_templates/4.3.stable /github/home/.local/share/godot/export_templates/4.3.stable
+          echo 'export/android/java_sdk_path = "/usr/lib/jvm/java-17-openjdk-amd64"' >> /github/home/.config/godot/editor_settings-4.3.tres
           mkdir -p /github/home/.android
           keytool -genkeypair -v -keystore /github/home/.android/debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -validity 10000 -dname "CN=Aqua Rush,O=Somnyra,C=TR"
       - name: Export Android APK
