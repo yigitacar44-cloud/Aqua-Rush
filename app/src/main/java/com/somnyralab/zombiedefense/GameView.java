@@ -16,7 +16,7 @@ public class GameView extends View {
     private final ArrayList<Particle> particles = new ArrayList<>();
     private final SharedPreferences prefs;
     private State state = State.MENU;
-    private long lastFrame, lastShot, waveStarted;
+    private long lastFrame, lastShot, waveStarted, playerInvulnerableUntil;
     private float w, h, scale, px, py, joyX, joyY, aimX, aimY;
     private float moveBaseX, moveBaseY, aimBaseX, aimBaseY, aimDX = 1, aimDY;
     private float screenShake, damageFlash, muzzleFlash;
@@ -85,7 +85,13 @@ public class GameView extends View {
             px += dx*speed*dt; py += dy*speed*dt;
         }
         px = clamp(px, 42*scale, w-42*scale); py = clamp(py, 100*scale, h-42*scale);
-        if (aiming && now-lastShot >= fireDelay) {
+        if (!aiming && !zombies.isEmpty()) {
+            Zombie target=zombies.get(0); float best=dist2(px,py,target.x,target.y);
+            for(Zombie z:zombies){float d=dist2(px,py,z.x,z.y);if(d<best){best=d;target=z;}}
+            float tx=target.x-px,ty=target.y-py,len=(float)Math.hypot(tx,ty);
+            if(len>1){aimDX=tx/len;aimDY=ty/len;}
+        }
+        if (!zombies.isEmpty() && now-lastShot >= fireDelay) {
             float dx=aimDX, dy=aimDY, len=(float)Math.hypot(dx,dy);
             if (len>20 && ammo>0) {
                 dx/=len; dy/=len; bullets.add(new Bullet(px+dx*28*scale,py+dy*28*scale,dx*bulletSpeed,dy*bulletSpeed));
@@ -108,7 +114,10 @@ public class GameView extends View {
             z.flash=Math.max(0,z.flash-dt);
             float dx=px-z.x,dy=py-z.y,len=(float)Math.hypot(dx,dy);
             if(len>1){ z.x+=dx/len*z.speed*dt;z.y+=dy/len*z.speed*dt; }
-            if(len<z.radius+25*scale && now-z.lastHit>650){ hp-=z.damage;z.lastHit=now;damageFlash=1;screenShake=12;burst(px,py,0xffe94b4b,12); }
+            if(len<z.radius+25*scale && now>=playerInvulnerableUntil){
+                hp-=Math.max(5,z.damage-4); playerInvulnerableUntil=now+520; damageFlash=1;screenShake=9;burst(px,py,0xffe94b4b,10);
+                if(len>1){z.x-=dx/len*30*scale;z.y-=dy/len*30*scale;}
+            }
         }
         for(int i=particles.size()-1;i>=0;i--){Particle q=particles.get(i);q.x+=q.vx*dt;q.y+=q.vy*dt;q.life-=dt;if(q.life<=0)particles.remove(i);}
         if(hp<=0){state=State.GAME_OVER;bestWave=Math.max(bestWave,wave);prefs.edit().putInt("bestWave",bestWave).apply();}
@@ -159,8 +168,9 @@ public class GameView extends View {
         text(c,ammo+" / "+magazine,27*scale,w-36*scale,0xffffd65a,true,Paint.Align.RIGHT,57*scale);
         if(moving) joystick(c,moveBaseX,moveBaseY,joyX,joyY);
         else hintJoystick(c,110*scale,h-112*scale,"MOVE");
-        if(aiming){joystick(c,aimBaseX,aimBaseY,aimDX,aimDY);stroke.setColor(0x88ffdd62);stroke.setStrokeWidth(2*scale);c.drawLine(px+aimDX*42*scale,py+aimDY*42*scale,px+aimDX*115*scale,py+aimDY*115*scale,stroke);}
-        else hintJoystick(c,w-110*scale,h-112*scale,"AIM / FIRE");
+        if(aiming)joystick(c,aimBaseX,aimBaseY,aimDX,aimDY);
+        else hintJoystick(c,w-110*scale,h-112*scale,"AUTO FIRE");
+        stroke.setColor(0x88ffdd62);stroke.setStrokeWidth(2*scale);c.drawLine(px+aimDX*42*scale,py+aimDY*42*scale,px+aimDX*115*scale,py+aimDY*115*scale,stroke);
         if(damageFlash>0){p.setColor(((int)(110*damageFlash)<<24)|0x00c62222);c.drawRect(0,0,w,h,p);}
         if(now<toastUntil) text(c,toast,34*scale,w/2,0xffffdc61,true,Paint.Align.CENTER,80*scale);
     }
@@ -171,7 +181,7 @@ public class GameView extends View {
         text(c,"ZOMBIE DEFENSE",26*scale,w/2,0xff9fc447,true,Paint.Align.CENTER,h*.39f);
         button(c,w/2-170*scale,h*.54f,w/2+170*scale,h*.66f,"START GAME",0xffb4d94e);
         text(c,"Best wave: "+bestWave,20*scale,w/2,0xff89968d,false,Paint.Align.CENTER,h*.74f);
-        text(c,"Left: move  •  Right: aim and fire",18*scale,w/2,0xff647168,false,Paint.Align.CENTER,h*.83f);
+        text(c,"Move with the left stick  •  Weapon fires automatically",18*scale,w/2,0xff647168,false,Paint.Align.CENTER,h*.83f);
     }
 
     private void drawUpgrade(Canvas c){
@@ -209,7 +219,8 @@ public class GameView extends View {
         if(action==MotionEvent.ACTION_DOWN && state==State.UPGRADE){chooseUpgrade(x,y);return true;}
         if(state!=State.PLAYING)return true;
         if(action==MotionEvent.ACTION_DOWN||action==MotionEvent.ACTION_POINTER_DOWN){
-            if(x<w*.48f && movePointer<0){movePointer=id;moving=true;moveBaseX=x;moveBaseY=y;updateMove(x,y);}else if(aimPointer<0){aimPointer=id;aiming=true;aimBaseX=x;aimBaseY=y;aimX=x;aimY=y;}
+            if(x<w*.48f && movePointer<0){movePointer=id;moving=true;moveBaseX=x;moveBaseY=y;updateMove(x,y);}
+            else if(x>w*.52f && aimPointer<0){aimPointer=id;aiming=true;aimBaseX=x;aimBaseY=y;aimX=x;aimY=y;}
         } else if(action==MotionEvent.ACTION_MOVE){
             for(int i=0;i<e.getPointerCount();i++){int pid=e.getPointerId(i);if(pid==movePointer)updateMove(e.getX(i),e.getY(i));if(pid==aimPointer)updateAim(e.getX(i),e.getY(i));}
         } else if(action==MotionEvent.ACTION_UP||action==MotionEvent.ACTION_POINTER_UP||action==MotionEvent.ACTION_CANCEL){
