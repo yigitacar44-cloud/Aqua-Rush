@@ -72,7 +72,7 @@ func make_scenery(i:int)->Node3D:
 	var d:=Node3D.new();d.set_meta("side",-1 if i%2==0 else 1);d.set_meta("kind",i%5)
 	if i%5<3:
 		d.add_child(cyl(.25,2.5,Color("694931"),Vector3(0,1.25,0)))
-		var cm:=ConeMesh.new();cm.top_radius=0;cm.bottom_radius=1.45;cm.height=3.2;cm.radial_segments=8;d.add_child(node(cm,Color("278364"),Vector3(0,3,0)))
+		var cm:=CylinderMesh.new();cm.top_radius=0;cm.bottom_radius=1.45;cm.height=3.2;cm.radial_segments=8;d.add_child(node(cm,Color("278364"),Vector3(0,3,0)))
 		d.add_child(ball(.8,Color("f6fcff"),Vector3(0,3.1,0),Vector3(1,.18,1)))
 	elif i%5==3:d.add_child(ball(1.8,Color("5d6c77"),Vector3(0,.5,0),Vector3(1.4,.75,1)))
 	else:
