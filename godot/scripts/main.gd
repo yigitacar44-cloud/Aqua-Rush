@@ -1,232 +1,234 @@
 extends Node3D
 
-var player: Node3D
-var camera: Camera3D
-var world_items: Array[Node3D] = []
-var state := "menu"
-var speed := 0.0
-var distance := 0.0
-var lane := 0.0
-var drag_x := 0.0
-var charging := false
-var power := 25.0
-var power_dir := 1.0
-var run_coins := 0
-var coins := 100
-var best := 0
-var launch_level := 1
-var boat_level := 1
-var income_level := 1
-var far_z := -100.0
-var hud: Control
-var menu: Control
-var speed_label: Label
-var distance_label: Label
-var coin_label: Label
-var best_label: Label
-var charge_bar: ProgressBar
-var hint_label: Label
-var result_label: Label
-var rng := RandomNumberGenerator.new()
+const TRACK_HALF := 7.0
+const POOL_SIZE := 84
+var rng:=RandomNumberGenerator.new()
+var player:Node3D
+var camera:Camera3D
+var tiles:Array[Node3D]=[]
+var scenery:Array[Node3D]=[]
+var objects:Array[Node3D]=[]
+var menu:Control
+var hud:Control
+var result:Control
+var speed_text:Label
+var distance_text:Label
+var coins_text:Label
+var air_text:Label
+var result_text:Label
+var progress:ProgressBar
+var upgrade_buttons:Array[Button]=[]
+var state="menu"
+var speed:=0.0
+var distance:=0.0
+var target_x:=0.0
+var y_speed:=0.0
+var airborne:=false
+var air_time:=0.0
+var best_air:=0.0
+var immunity:=0.0
+var spawn_z:=-35.0
+var run_coins:=0
+var coins:=350
+var gems:=12
+var best:=0
+var level:=1
+var launcher:=1
+var sled:=1
+var income:=1
 
-func mat(color: Color, rough := 0.75, metallic := 0.0) -> StandardMaterial3D:
-	var m := StandardMaterial3D.new()
-	m.albedo_color = color
-	m.roughness = rough
-	m.metallic = metallic
+func mat(c:Color,emit:=Color.BLACK)->StandardMaterial3D:
+	var m:=StandardMaterial3D.new();m.albedo_color=c;m.roughness=.72
+	if emit!=Color.BLACK:m.emission_enabled=true;m.emission=emit;m.emission_energy_multiplier=1.3
 	return m
+func node(mesh:Mesh,c:Color,p:=Vector3.ZERO,s:=Vector3.ONE)->MeshInstance3D:
+	var n:=MeshInstance3D.new();n.mesh=mesh;n.material_override=mat(c);n.position=p;n.scale=s;return n
+func box(sz:Vector3,c:Color,p:=Vector3.ZERO)->MeshInstance3D:
+	var m:=BoxMesh.new();m.size=sz;return node(m,c,p)
+func ball(r:float,c:Color,p:=Vector3.ZERO,s:=Vector3.ONE)->MeshInstance3D:
+	var m:=SphereMesh.new();m.radius=r;m.height=r*2;m.radial_segments=12;m.rings=7;return node(m,c,p,s)
+func cyl(r:float,h:float,c:Color,p:=Vector3.ZERO)->MeshInstance3D:
+	var m:=CylinderMesh.new();m.top_radius=r;m.bottom_radius=r;m.height=h;m.radial_segments=12;return node(m,c,p)
 
-func mesh_node(mesh: Mesh, color: Color, pos: Vector3, scale_v := Vector3.ONE) -> MeshInstance3D:
-	var n := MeshInstance3D.new()
-	n.mesh = mesh
-	n.material_override = mat(color)
-	n.position = pos
-	n.scale = scale_v
-	return n
+func _ready():
+	rng.randomize();build_environment();build_player();build_course();build_pool();build_ui();load_game();show_menu()
 
-func box(size: Vector3, color: Color, pos: Vector3) -> MeshInstance3D:
-	var m := BoxMesh.new(); m.size = size
-	return mesh_node(m, color, pos)
+func build_environment():
+	var we:=WorldEnvironment.new();var e:=Environment.new()
+	e.background_mode=Environment.BG_COLOR;e.background_color=Color("99d9f1");e.ambient_light_source=Environment.AMBIENT_SOURCE_COLOR;e.ambient_light_color=Color("e3f8ff");e.ambient_light_energy=1.15;e.tonemap_mode=Environment.TONE_MAPPER_FILMIC;e.fog_enabled=true;e.fog_light_color=Color("d2edf6");e.fog_density=.005;we.environment=e;add_child(we)
+	var sun:=DirectionalLight3D.new();sun.rotation_degrees=Vector3(-50,-28,0);sun.light_energy=1.25;sun.shadow_enabled=true;add_child(sun)
+	camera=Camera3D.new();camera.position=Vector3(0,5.7,9.5);camera.fov=63;add_child(camera);camera.look_at_from_position(camera.position,Vector3(0,1,-13))
 
-func sphere(radius: float, color: Color, pos: Vector3, scale_v := Vector3.ONE) -> MeshInstance3D:
-	var m := SphereMesh.new(); m.radius = radius; m.height = radius * 2.0; m.radial_segments = 12; m.rings = 6
-	return mesh_node(m, color, pos, scale_v)
+func build_course():
+	for i in range(11):
+		var t:=Node3D.new();t.position=Vector3(0,-.12,-i*38+10);add_child(t)
+		t.add_child(box(Vector3(18,.4,39),Color("edf9ff")))
+		for x in [-2.4,2.4]:t.add_child(box(Vector3(.15,.04,38),Color("bee3f1"),Vector3(x,.23,0)))
+		tiles.append(t)
+	for i in range(72):
+		var d:=make_scenery(i);add_child(d);scenery.append(d)
 
-func cylinder(radius: float, height: float, color: Color, pos: Vector3) -> MeshInstance3D:
-	var m := CylinderMesh.new(); m.top_radius = radius; m.bottom_radius = radius; m.height = height; m.radial_segments = 16
-	return mesh_node(m, color, pos)
-
-func _ready() -> void:
-	rng.randomize()
-	build_environment()
-	build_player()
-	build_world_pool()
-	build_ui()
-	load_save()
-	update_menu()
-
-func build_environment() -> void:
-	var env := WorldEnvironment.new()
-	var e := Environment.new()
-	e.background_mode = Environment.BG_COLOR
-	e.background_color = Color("63cef0")
-	e.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	e.ambient_light_color = Color("d9f8ff")
-	e.ambient_light_energy = 1.2
-	e.tonemap_mode = Environment.TONE_MAPPER_FILMIC
-	env.environment = e; add_child(env)
-	var sun := DirectionalLight3D.new(); sun.rotation_degrees = Vector3(-48,-28,0); sun.light_energy = 1.15; sun.shadow_enabled = true; add_child(sun)
-	var water_mesh := PlaneMesh.new(); water_mesh.size = Vector2(90,2200); water_mesh.subdivide_width = 20; water_mesh.subdivide_depth = 200
-	var water := mesh_node(water_mesh, Color("079fc9"), Vector3(0,0,-1000)); water.material_override = mat(Color("079fc9"),0.18,0.05); add_child(water)
-	for side in [-1,1]:
-		for i in range(9):
-			var island := Node3D.new(); island.position = Vector3(side*(15+rng.randf_range(0,8)),0.1,-60-i*150-rng.randf_range(0,80)); add_child(island)
-			island.add_child(sphere(4.0,Color("edcf79"),Vector3.ZERO,Vector3(2.1,.35,1.5)))
-			island.add_child(sphere(3.7,Color("36a85c"),Vector3(0,.45,0),Vector3(1.9,.22,1.3)))
-			for p in range(2):
-				var palm := Node3D.new(); palm.position=Vector3(p*3-1.5,.7,p*1.2); island.add_child(palm)
-				palm.add_child(cylinder(.22,4.5,Color("7d502c"),Vector3(0,2.1,0)))
-				for a in range(5):
-					var leaf:=box(Vector3(.32,.12,3.4),Color("208c49"),Vector3(0,4.3,0)); leaf.rotation_degrees.y=a*72; leaf.position += Vector3(sin(deg_to_rad(a*72))*1.3,0,cos(deg_to_rad(a*72))*1.3); palm.add_child(leaf)
-	camera = Camera3D.new(); camera.position=Vector3(0,6.2,10.5); camera.fov=62; add_child(camera); camera.look_at_from_position(camera.position,Vector3(0,1,-15))
-
-func build_player() -> void:
-	player=Node3D.new(); player.position=Vector3(0,.55,0); add_child(player)
-	var ring_mesh:=TorusMesh.new(); ring_mesh.inner_radius=.65; ring_mesh.outer_radius=1.6; ring_mesh.rings=20; ring_mesh.ring_segments=12
-	player.add_child(mesh_node(ring_mesh,Color("ef3845"),Vector3.ZERO,Vector3(1.2,.65,1.35)))
-	player.add_child(sphere(.63,Color("ffd438"),Vector3(0,.02,0),Vector3(1,.25,1)))
-	player.add_child(cylinder(.34,1.35,Color("1c506b"),Vector3(0,1.05,0)))
-	player.add_child(sphere(.36,Color("e5a072"),Vector3(0,1.92,0)))
-	player.add_child(sphere(.37,Color("273841"),Vector3(0,2.08,-.03),Vector3(1,.45,1)))
-	var wake:=sphere(1.0,Color(1,1,1,.65),Vector3(0,-.25,1.7),Vector3(1.4,.08,2.8)); player.add_child(wake)
-
-func build_world_pool() -> void:
-	for i in range(65):
-		var item:=Node3D.new(); item.set_meta("kind",choose_kind()); add_child(item); build_item_mesh(item); respawn(item,true); world_items.append(item)
-
-func choose_kind() -> String:
-	var r:=rng.randf(); return "coin" if r<.48 else ("ramp" if r<.64 else ("buoy" if r<.82 else "rock"))
-
-func build_item_mesh(item:Node3D) -> void:
-	var k:String=item.get_meta("kind")
-	if k=="coin":
-		var coin:=cylinder(.48,.16,Color("ffd21f"),Vector3(0,1.1,0)); coin.rotation_degrees.x=90; item.add_child(coin)
-		item.add_child(sphere(.58,Color("fff18b"),Vector3(0,1.1,.06),Vector3(1,.08,1)))
-	elif k=="ramp":
-		var ramp:=box(Vector3(3.2,.35,3.8),Color("ff772f"),Vector3(0,.28,0)); ramp.rotation_degrees.x=-12; item.add_child(ramp)
-		item.add_child(box(Vector3(.35,.08,3.9),Color.WHITE,Vector3(0,.5,0)))
-	elif k=="buoy":
-		item.add_child(cylinder(.28,1.8,Color.WHITE,Vector3(0,.9,0))); item.add_child(sphere(.52,Color("ef3543"),Vector3(0,1.65,0)))
+func make_scenery(i:int)->Node3D:
+	var d:=Node3D.new();d.set_meta("side",-1 if i%2==0 else 1);d.set_meta("kind",i%5)
+	if i%5<3:
+		d.add_child(cyl(.25,2.5,Color("694931"),Vector3(0,1.25,0)))
+		var cm:=ConeMesh.new();cm.top_radius=0;cm.bottom_radius=1.45;cm.height=3.2;cm.radial_segments=8;d.add_child(node(cm,Color("278364"),Vector3(0,3,0)))
+		d.add_child(ball(.8,Color("f6fcff"),Vector3(0,3.1,0),Vector3(1,.18,1)))
+	elif i%5==3:d.add_child(ball(1.8,Color("5d6c77"),Vector3(0,.5,0),Vector3(1.4,.75,1)))
 	else:
-		item.add_child(sphere(1.25,Color("566a72"),Vector3(0,.55,0),Vector3(1.25,.55,1)))
+		d.add_child(cyl(.18,5,Color("5b4534"),Vector3(0,2.5,0)))
+		for y in [1.3,2.6,3.9]:d.add_child(box(Vector3(2.7,.3,.3),Color("725238"),Vector3(0,y,0)))
+	respawn_scenery(d,true,i);return d
+func respawn_scenery(d:Node3D,initial:=false,i:=0):
+	var z=-18.0-i*5.5 if initial else -410-rng.randf_range(0,40)
+	d.position=Vector3(int(d.get_meta("side"))*rng.randf_range(10,17),0,z);d.rotation_degrees.y=rng.randf_range(-25,25)
 
-func respawn(item:Node3D, initial:=false) -> void:
-	far_z -= rng.randf_range(14,25)
-	item.position=Vector3(rng.randf_range(-6.2,6.2),0,far_z if not initial else rng.randf_range(-45,-1150))
-	item.visible=true
+func build_player():
+	player=Node3D.new();player.position=Vector3(0,.32,0);add_child(player)
+	player.add_child(box(Vector3(2.5,.34,3.5),Color("ee4056"),Vector3(0,.18,0)))
+	player.add_child(box(Vector3(2.05,.22,2.55),Color("26a9cc"),Vector3(0,.45,-.05)))
+	for x in [-.9,.9]:player.add_child(box(Vector3(.16,.18,3.85),Color("403944"),Vector3(x,-.08,.1)))
+	for x in [-.42,.42]:
+		var leg:=cyl(.2,1.15,Color("244d79"),Vector3(x,.98,.18));leg.rotation_degrees.x=16;player.add_child(leg)
+	player.add_child(box(Vector3(1.3,1.55,.75),Color("e74a4c"),Vector3(0,2.05,.05)))
+	player.add_child(box(Vector3(1.08,.26,.8),Color("f4f6f8"),Vector3(0,2.2,.05)))
+	for x in [-.82,.82]:
+		var arm:=cyl(.18,1.25,Color("e74a4c"),Vector3(x,2.05,-.15));arm.rotation_degrees.z=-28*x;player.add_child(arm)
+	player.add_child(cyl(.16,2.8,Color("75502d"),Vector3(0,1.5,-.35)));player.add_child(box(Vector3(3,.17,.17),Color("75502d"),Vector3(0,2.85,-.35)))
+	player.add_child(ball(.48,Color("e7a176"),Vector3(0,3.14,.02)));player.add_child(ball(.52,Color("203f5b"),Vector3(0,3.38,.02),Vector3(1,.65,1)));player.add_child(box(Vector3(1.15,.18,.85),Color("ffd13d"),Vector3(0,3.47,.02)))
+	var scarf:=box(Vector3(.25,.18,1.5),Color("36d3a5"),Vector3(.35,2.72,.6));scarf.rotation_degrees.x=18;player.add_child(scarf)
 
-func style_box(color:Color,radius:=18) -> StyleBoxFlat:
-	var s:=StyleBoxFlat.new(); s.bg_color=color; s.corner_radius_top_left=radius; s.corner_radius_top_right=radius; s.corner_radius_bottom_left=radius; s.corner_radius_bottom_right=radius; s.border_width_left=2;s.border_width_right=2;s.border_width_top=2;s.border_width_bottom=2;s.border_color=Color(1,1,1,.55);return s
+func build_pool():
+	for i in range(POOL_SIZE):
+		var o:=Node3D.new();add_child(o);objects.append(o);configure(o,kind_for(i));place(o,true,i)
+func kind_for(i:int)->String:
+	var n=i%12
+	if n<5:return "coin"
+	if n<7:return "rock"
+	if n==7:return "ramp"
+	if n==8:return "gate"
+	if n<11:return "post"
+	return "boost"
+func configure(o:Node3D,k:String):
+	o.set_meta("kind",k)
+	if k=="coin":
+		var c:=cyl(.42,.14,Color("ffca25"),Vector3(0,1,0));c.rotation_degrees.x=90;o.add_child(c);o.add_child(ball(.5,Color("fff1a2"),Vector3(0,1,.07),Vector3(1,.08,1)))
+	elif k=="rock":o.add_child(ball(1.15,Color("586975"),Vector3(0,.48,0),Vector3(1.3,.62,1)));o.add_child(ball(.8,Color("f5fcff"),Vector3(0,1,0),Vector3(1.15,.2,1)))
+	elif k=="ramp":
+		var r:=box(Vector3(3.5,.42,4.2),Color("ff8434"),Vector3(0,.3,0));r.rotation_degrees.x=-13;o.add_child(r);o.add_child(box(Vector3(.34,.07,4),Color.WHITE,Vector3(0,.58,0)))
+	elif k=="gate":
+		for x in [-2.3,2.3]:o.add_child(cyl(.25,4.4,Color("3e4a54"),Vector3(x,2.2,0)))
+		o.add_child(box(Vector3(5.2,.35,.35),Color("765033"),Vector3(0,4.15,0)))
+		for x in [-1.7,0,1.7]:o.add_child(cyl(.23,1.5,Color("ffce39"),Vector3(x,3.25,0)))
+	elif k=="post":
+		o.add_child(cyl(.33,2.7,Color("404d59"),Vector3(0,1.35,0)))
+		for y in [1,1.7,2.4]:o.add_child(cyl(.39,.22,Color("edf8fc"),Vector3(0,y,0)))
+	else:
+		var p:=box(Vector3(3,.12,3.5),Color("25d2eb"),Vector3(0,.12,0));p.material_override=mat(Color("25d2eb"),Color("159fb8"));o.add_child(p)
+func place(o:Node3D,initial:=false,i:=0):
+	spawn_z=-35.0-i*9.0 if initial else spawn_z-rng.randf_range(8,14)
+	var lanes=[-5.2,-2.6,0.0,2.6,5.2];var x:float=lanes[rng.randi_range(0,4)]
+	if o.get_meta("kind")=="gate":x=0
+	if o.get_meta("kind")=="coin" and i%5!=0:x=lanes[int(i/5)%5]
+	o.position=Vector3(x,0,spawn_z);o.visible=true
 
-func label(text:String,size:int) -> Label:
-	var l:=Label.new();l.text=text;l.add_theme_font_size_override("font_size",size);l.add_theme_color_override("font_color",Color.WHITE);l.add_theme_color_override("font_shadow_color",Color("14506b"));l.add_theme_constant_override("shadow_offset_x",2);l.add_theme_constant_override("shadow_offset_y",2);l.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER;return l
+func style(c:Color,r:=16)->StyleBoxFlat:
+	var s:=StyleBoxFlat.new();s.bg_color=c;s.corner_radius_top_left=r;s.corner_radius_top_right=r;s.corner_radius_bottom_left=r;s.corner_radius_bottom_right=r;s.border_width_left=2;s.border_width_top=2;s.border_width_right=2;s.border_width_bottom=2;s.border_color=Color(1,1,1,.5);s.shadow_color=Color(0,0,0,.2);s.shadow_size=4;return s
+func label(t:String,z:int,c:=Color.WHITE)->Label:
+	var l:=Label.new();l.text=t;l.add_theme_font_size_override("font_size",z);l.add_theme_color_override("font_color",c);l.add_theme_color_override("font_shadow_color",Color(0,.1,.2,.8));l.add_theme_constant_override("shadow_offset_x",2);l.add_theme_constant_override("shadow_offset_y",2);l.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER;l.vertical_alignment=VERTICAL_ALIGNMENT_CENTER;return l
+func button(t:String,c:=Color("28ace0"))->Button:
+	var b:=Button.new();b.text=t;b.custom_minimum_size=Vector2(155,58);b.add_theme_font_size_override("font_size",20);b.add_theme_stylebox_override("normal",style(c));b.add_theme_stylebox_override("pressed",style(c.darkened(.2)));b.add_theme_color_override("font_color",Color.WHITE);return b
 
-func button(text:String) -> Button:
-	var b:=Button.new();b.text=text;b.custom_minimum_size=Vector2(150,62);b.add_theme_font_size_override("font_size",23);b.add_theme_stylebox_override("normal",style_box(Color("ffc930")));b.add_theme_stylebox_override("pressed",style_box(Color("e99a1b")));b.add_theme_color_override("font_color",Color("174d67"));return b
-
-func build_ui() -> void:
+func build_ui():
 	var layer:=CanvasLayer.new();add_child(layer)
 	menu=Control.new();menu.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT);layer.add_child(menu)
-	var shade:=ColorRect.new();shade.color=Color(0.02,.25,.34,.22);shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT);menu.add_child(shade)
-	var title:=label("AQUA\nRUSH 3D",48);title.position=Vector2(0,80);title.size=Vector2(540,120);menu.add_child(title)
-	var lvl:=label("LEVEL 1",20);lvl.name="Level";lvl.position=Vector2(185,205);lvl.size=Vector2(170,40);lvl.add_theme_stylebox_override("normal",style_box(Color("f05261"),14));menu.add_child(lvl)
-	var play:=button("OYNA");play.position=Vector2(195,515);play.pressed.connect(start_charge);menu.add_child(play)
-	result_label=label("",18);result_label.position=Vector2(0,590);result_label.size=Vector2(540,32);menu.add_child(result_label)
-	var names=["FIRLATICI","BOT","KAZANÇ"]
+	var cur:=label("🎟 20     🪙 350     💎 12",21);cur.name="Currencies";cur.position=Vector2(8,12);cur.size=Vector2(410,48);cur.add_theme_stylebox_override("normal",style(Color(.05,.2,.3,.72)));menu.add_child(cur)
+	var lv:=label("LEVEL 1",28);lv.name="Level";lv.position=Vector2(145,90);lv.size=Vector2(250,50);lv.add_theme_stylebox_override("normal",style(Color("ef5068")));menu.add_child(lv)
+	var tasks:=button("GÜNLÜK\nGÖREVLER",Color("7058d7"));tasks.position=Vector2(15,165);tasks.size=Vector2(145,78);tasks.pressed.connect(show_tasks);menu.add_child(tasks)
+	var chest:=button("🎁\nSANDIK",Color("e3a327"));chest.position=Vector2(380,165);chest.size=Vector2(145,78);menu.add_child(chest)
+	var play:=button("BAŞLA",Color("20bddf"));play.position=Vector2(170,565);play.size=Vector2(200,72);play.add_theme_font_size_override("font_size",28);play.pressed.connect(start_run);menu.add_child(play)
+	var hint:=label("BAŞLAMAK İÇİN DOKUN",18);hint.position=Vector2(0,640);hint.size=Vector2(540,38);menu.add_child(hint)
+	var cards:=HBoxContainer.new();cards.position=Vector2(8,704);cards.size=Vector2(524,210);cards.add_theme_constant_override("separation",8);menu.add_child(cards)
 	for i in range(3):
-		var panel:=VBoxContainer.new();panel.position=Vector2(10+i*177,700);panel.size=Vector2(167,190);panel.add_theme_stylebox_override("panel",style_box(Color("f7fcff")));menu.add_child(panel)
-		var icon:=label(["🚀","🛟","💰"][i],34);panel.add_child(icon)
-		var nm:=label(names[i],17);nm.add_theme_color_override("font_color",Color("174d67"));panel.add_child(nm)
-		var up:=button("🪙 30");up.name="Upgrade%d"%i;up.custom_minimum_size=Vector2(150,45);up.add_theme_font_size_override("font_size",16);up.pressed.connect(upgrade.bind(i));panel.add_child(up)
+		var card:=VBoxContainer.new();card.custom_minimum_size=Vector2(169,205);card.add_theme_stylebox_override("panel",style(Color(.06,.25,.37,.88)));cards.add_child(card)
+		card.add_child(label(["🏹","🛷","🪙"][i],36));card.add_child(label(["FIRLATICI","KIZAK","KAZANÇ"][i],17))
+		var up:=button("SEVİYE 1 • 🪙 120",Color("efb32e"));up.custom_minimum_size=Vector2(158,52);up.add_theme_font_size_override("font_size",14);up.pressed.connect(upgrade.bind(i));card.add_child(up);upgrade_buttons.append(up)
 	hud=Control.new();hud.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT);hud.visible=false;layer.add_child(hud)
-	coin_label=label("🪙 0",18);coin_label.position=Vector2(12,20);coin_label.size=Vector2(110,40);coin_label.add_theme_stylebox_override("normal",style_box(Color("164d66"),16));hud.add_child(coin_label)
-	best_label=label("🏆 0 m",18);best_label.position=Vector2(408,20);best_label.size=Vector2(120,40);best_label.add_theme_stylebox_override("normal",style_box(Color("164d66"),16));hud.add_child(best_label)
-	speed_label=label("0 km/h",34);speed_label.position=Vector2(0,68);speed_label.size=Vector2(540,45);hud.add_child(speed_label)
-	distance_label=label("0 m",19);distance_label.position=Vector2(0,112);distance_label.size=Vector2(540,30);hud.add_child(distance_label)
-	hint_label=label("BASILI TUT • GÜCÜ AYARLA • BIRAK",17);hint_label.position=Vector2(0,875);hint_label.size=Vector2(540,35);hud.add_child(hint_label)
-	charge_bar=ProgressBar.new();charge_bar.position=Vector2(100,835);charge_bar.size=Vector2(340,25);charge_bar.max_value=100;charge_bar.show_percentage=false;charge_bar.add_theme_stylebox_override("background",style_box(Color("174d67"),12));charge_bar.add_theme_stylebox_override("fill",style_box(Color("ffb52f"),12));hud.add_child(charge_bar)
+	coins_text=label("🪙 0",19);coins_text.position=Vector2(15,18);coins_text.size=Vector2(110,45);coins_text.add_theme_stylebox_override("normal",style(Color(.04,.2,.3,.75)));hud.add_child(coins_text)
+	distance_text=label("0 m",25);distance_text.position=Vector2(170,23);distance_text.size=Vector2(200,42);hud.add_child(distance_text)
+	speed_text=label("0\nkm/h",26);speed_text.position=Vector2(18,790);speed_text.size=Vector2(120,100);speed_text.add_theme_stylebox_override("normal",style(Color(.04,.23,.33,.75),50));hud.add_child(speed_text)
+	progress=ProgressBar.new();progress.position=Vector2(495,100);progress.size=Vector2(20,520);progress.max_value=1800;progress.show_percentage=false;progress.add_theme_stylebox_override("background",style(Color(.05,.2,.3,.6),10));progress.add_theme_stylebox_override("fill",style(Color("22d3e7"),10));hud.add_child(progress)
+	air_text=label("",21);air_text.position=Vector2(150,145);air_text.size=Vector2(240,48);air_text.add_theme_stylebox_override("normal",style(Color("edb52e")));air_text.visible=false;hud.add_child(air_text)
+	result=Control.new();result.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT);result.visible=false;layer.add_child(result)
+	var shade:=ColorRect.new();shade.color=Color(0,.08,.12,.72);shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT);result.add_child(shade)
+	var panel:=Panel.new();panel.position=Vector2(55,190);panel.size=Vector2(430,520);panel.add_theme_stylebox_override("panel",style(Color("e9f8ff"),28));result.add_child(panel)
+	result_text=label("",24,Color("174d68"));result_text.position=Vector2(30,35);result_text.size=Vector2(370,300);panel.add_child(result_text)
+	var again:=button("TEKRAR OYNA",Color("20bddf"));again.position=Vector2(115,350);again.size=Vector2(200,62);again.pressed.connect(start_run);panel.add_child(again)
+	var home:=button("ANA MENÜ",Color("5d7180"));home.position=Vector2(115,430);home.size=Vector2(200,58);home.pressed.connect(show_menu);panel.add_child(home)
 
-func start_charge()->void:
-	menu.visible=false;hud.visible=true;state="charge";power=20;charging=false;speed=0;distance=0;run_coins=0;lane=0;player.position.x=0;far_z=-100
-	for it in world_items: respawn(it,true)
+func _input(e:InputEvent):
+	if state!="ride":return
+	if e is InputEventScreenDrag:target_x=clamp(target_x+e.relative.x*.02,-TRACK_HALF,TRACK_HALF)
+	elif e is InputEventMouseMotion and Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):target_x=clamp(target_x+e.relative.x*.02,-TRACK_HALF,TRACK_HALF)
 
-func upgrade(which:int)->void:
-	var levels:Array[int]=[launch_level,boat_level,income_level];var cost:int=30*levels[which]*levels[which]
-	if coins<cost:result_label.text="Yeterli altının yok!";return
+func _process(dt:float):
+	if state=="menu":player.rotation.y=sin(Time.get_ticks_msec()*.0006)*.1;return
+	if state!="ride":return
+	immunity=max(0.0,immunity-dt);distance+=speed*dt;speed=clamp(speed+dt*(.55+sled*.08),17.0,42.0+sled)
+	player.position.x=lerp(player.position.x,target_x,dt*7.5);player.rotation.z=lerp(player.rotation.z,-(target_x-player.position.x)*.12,dt*8)
+	if airborne:
+		y_speed-=18*dt;player.position.y+=y_speed*dt;air_time+=dt;air_text.visible=true;air_text.text="HAVADA %.1f sn"%air_time
+		if player.position.y<=.32:player.position.y=.32;airborne=false;best_air=max(best_air,air_time);air_text.visible=false;speed+=min(5,air_time*1.4)
+	else:player.position.y=.32+sin(Time.get_ticks_msec()*.012)*.035
+	for t in tiles:
+		t.position.z+=speed*dt
+		if t.position.z>30:t.position.z-=418
+	for d in scenery:
+		d.position.z+=speed*dt
+		if d.position.z>18:respawn_scenery(d)
+	for o in objects:
+		o.position.z+=speed*dt
+		if o.get_meta("kind")=="coin":o.rotation.y+=dt*4
+		if o.position.z>10:place(o)
+		elif o.visible and abs(o.position.z)<1.8 and abs(o.position.x-player.position.x)<1.3:hit(o)
+	camera.position.x=lerp(camera.position.x,player.position.x*.16,dt*3);camera.look_at_from_position(camera.position,Vector3(player.position.x*.2,1.1,-13))
+	speed_text.text="%d\nkm/h"%int(speed*3.6);distance_text.text="%d m"%int(distance);coins_text.text="🪙 %d"%run_coins;progress.value=fmod(distance,1800)
+	if distance>=1800+level*250:finish()
+
+func hit(o:Node3D):
+	var k:String=o.get_meta("kind");o.visible=false
+	if k=="coin":run_coins+=income
+	elif k=="ramp":airborne=true;y_speed=10.5;air_time=0;speed+=4
+	elif k=="boost":speed+=8
+	elif k=="gate":run_coins+=5
+	elif immunity<=0:speed*=.58;immunity=1.1;player.rotation_degrees.z=16 if o.position.x<player.position.x else -16
+
+func start_run():
+	state="ride";menu.visible=false;result.visible=false;hud.visible=true;speed=24+launcher*1.8;distance=0;target_x=0;run_coins=0;airborne=false;air_time=0;best_air=0;immunity=0;spawn_z=-35;player.position=Vector3(0,.32,0);player.rotation=Vector3.ZERO;camera.position=Vector3(0,5.7,9.5)
+	for i in objects.size():place(objects[i],true,i)
+func finish():
+	state="result";hud.visible=false;result.visible=true;coins+=run_coins;best=max(best,int(distance));level+=1;gems+=2
+	result_text.text="BÖLÜM TAMAMLANDI!\n\n%d METRE\n🪙 +%d ALTIN\n✈ %.1f sn HAVADA\n🏆 EN İYİ %d m"%[int(distance),run_coins,best_air,best];save_game();update_ui()
+func show_menu():
+	state="menu";hud.visible=false;result.visible=false;menu.visible=true;camera.position=Vector3(0,4.9,8.7);camera.look_at_from_position(camera.position,Vector3(0,1.8,0));update_ui()
+func show_tasks():
+	menu.visible=false;result.visible=true;result_text.text="GÜNLÜK GÖREVLER\n\n• 500 m git\n• 25 altın topla\n• 3 rampadan uç\n\nÖDÜL: 💎 5"
+func upgrade(i:int):
+	var levels=[launcher,sled,income];var cost=120*levels[i]
+	if coins<cost:return
 	coins-=cost
-	if which==0:launch_level+=1
-	elif which==1:boat_level+=1
-	else:income_level+=1
-	save_game();update_menu()
-
-func _input(event:InputEvent)->void:
-	if event is InputEventScreenTouch:
-		if state=="charge":
-			if event.pressed:charging=true
-			elif charging: launch()
-		elif state=="ride":
-			drag_x=event.position.x
-	elif event is InputEventScreenDrag and state=="ride":
-		lane=clamp(lane+event.relative.x*.018,-6.0,6.0)
-	if event is InputEventMouseButton:
-		if state=="charge" and event.pressed:charging=true
-		elif state=="charge" and not event.pressed and charging:launch()
-	if event is InputEventMouseMotion and state=="ride" and Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):lane=clamp(lane+event.relative.x*.018,-6.0,6.0)
-
-func launch()->void:
-	state="ride";charging=false;speed=22.0+power*.36+launch_level*2.2;charge_bar.visible=false;hint_label.text="SAĞA • SOLA SÜRÜKLE"
-
-func _process(delta:float)->void:
-	if state=="charge":
-		if charging:
-			power+=power_dir*75.0*delta
-			if power>=100:power=100;power_dir=-1
-			if power<=10:power=10;power_dir=1
-		charge_bar.value=power
-	elif state=="ride":
-		distance+=speed*delta
-		speed=max(0.0,speed-delta*(1.25/(1.0+boat_level*.11)))
-		player.position.x=lerp(player.position.x,lane,delta*7.0)
-		player.rotation.z=lerp(player.rotation.z,-lane*.035,delta*5.0)
-		player.position.y=.55+sin(Time.get_ticks_msec()*.008)*.07
-		for item in world_items:
-			item.position.z+=speed*delta
-			if item.get_meta("kind")=="coin":item.rotation.y+=delta*3
-			if item.position.z>5:respawn(item)
-			elif abs(item.position.z)<2.0 and abs(item.position.x-player.position.x)<1.35 and item.visible:hit_item(item)
-		speed_label.text="%d km/h"%int(speed*3.6);distance_label.text="%d m"%int(distance);coin_label.text="🪙 %d"%(coins+run_coins);best_label.text="🏆 %d m"%best
-		if speed<1.0:finish_run()
-
-func hit_item(item:Node3D)->void:
-	item.visible=false;var k:String=item.get_meta("kind")
-	if k=="coin":run_coins+=income_level
-	elif k=="ramp":speed+=10;player.position.y+=.7
-	else:speed*=.62
-
-func finish_run()->void:
-	state="menu";coins+=run_coins;best=max(best,int(distance));save_game();update_menu();result_label.text="%d m gittin • +%d altın"%[int(distance),run_coins];hud.visible=false;menu.visible=true;charge_bar.visible=true;hint_label.text="BASILI TUT • GÜCÜ AYARLA • BIRAK"
-
-func save_game()->void:
-	var f:=FileAccess.open("user://save.json",FileAccess.WRITE);f.store_string(JSON.stringify({"coins":coins,"best":best,"launch":launch_level,"boat":boat_level,"income":income_level}))
-
-func load_save()->void:
-	if FileAccess.file_exists("user://save.json"):
-		var d=JSON.parse_string(FileAccess.get_file_as_string("user://save.json"));if d is Dictionary:coins=d.get("coins",100);best=d.get("best",0);launch_level=d.get("launch",1);boat_level=d.get("boat",1);income_level=d.get("income",1)
-
-func update_menu()->void:
-	coin_label.text="🪙 %d"%coins if coin_label else ""
-	if best_label:best_label.text="🏆 %d m"%best
-	var levels=[launch_level,boat_level,income_level]
-	for i in range(3):
-		var b=menu.get_node("Upgrade%d"%i) if menu.has_node("Upgrade%d"%i) else null
-		if b:b.text="Seviye %d  •  🪙 %d"%[levels[i],30*levels[i]*levels[i]]
+	if i==0:launcher+=1
+	elif i==1:sled+=1
+	else:income+=1
+	save_game();update_ui()
+func update_ui():
+	if not menu:return
+	menu.get_node("Currencies").text="🎟 20     🪙 %d     💎 %d"%[coins,gems];menu.get_node("Level").text="LEVEL %d"%level
+	var levels=[launcher,sled,income]
+	for i in upgrade_buttons.size():upgrade_buttons[i].text="SEVİYE %d • 🪙 %d"%[levels[i],120*levels[i]]
+func save_game():
+	var f:=FileAccess.open("user://save_v4.json",FileAccess.WRITE);f.store_string(JSON.stringify({"coins":coins,"gems":gems,"best":best,"level":level,"launcher":launcher,"sled":sled,"income":income}))
+func load_game():
+	if FileAccess.file_exists("user://save_v4.json"):
+		var d=JSON.parse_string(FileAccess.get_file_as_string("user://save_v4.json"))
+		if d is Dictionary:coins=d.get("coins",350);gems=d.get("gems",12);best=d.get("best",0);level=d.get("level",1);launcher=d.get("launcher",1);sled=d.get("sled",1);income=d.get("income",1)

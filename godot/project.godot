@@ -1,5 +1,5 @@
 [application]
-config/name="Aqua Rush 3D"
+config/name="Sled Rush 3D"
 run/main_scene="res://main.tscn"
 
 [display]
