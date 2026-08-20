@@ -161,7 +161,7 @@ func start_charge()->void:
 	for it in world_items: respawn(it,true)
 
 func upgrade(which:int)->void:
-	var levels=[launch_level,boat_level,income_level];var cost:=30*levels[which]*levels[which]
+	var levels:Array[int]=[launch_level,boat_level,income_level];var cost:int=30*levels[which]*levels[which]
 	if coins<cost:result_label.text="Yeterli altının yok!";return
 	coins-=cost
 	if which==0:launch_level+=1
