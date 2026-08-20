@@ -17,6 +17,8 @@ jobs:
       - name: Prepare Godot Android export
         working-directory: godot
         run: |
+          yes | sdkmanager --licenses >/dev/null
+          sdkmanager "platforms;android-34" "build-tools;34.0.0"
           mkdir -p build/android
           mkdir -p /github/home/.local/share/godot/export_templates
           mkdir -p /github/home/.config
